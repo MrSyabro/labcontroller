@@ -1,0 +1,9 @@
+menu "Hardware settings"
+
+config REG_COUNT
+    string "Register count"
+    default "1"
+    help
+        Count register connected to spi.
+
+endmenu
