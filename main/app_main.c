@@ -3,9 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include "esp_wifi.h"
 #include "esp_system.h"
-#include "nvs_flash.h"
+
 #include "esp_event_loop.h"
 
 #include "freertos/FreeRTOS.h"
@@ -14,166 +13,13 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 
-#include "lwip/sockets.h"
-#include "lwip/dns.h"
-#include "lwip/netdb.h"
-
 #include "esp_log.h"
-#include "mqtt_client.h"
 
-//#include "light.h"
+#include "messaging.h"
 #include "channels.h"
 #include "powerblock.h"
 
 static const char *TAG = "LABC_MAIN";
-
-esp_mqtt_client_handle_t client;
-
-static EventGroupHandle_t wifi_event_group;
-void mqtt_app_start(void);
-const static int CONNECTED_BIT = BIT0;
-
-esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
-{
-	client = event->client;
-	int msg_id;
-	// your_context_t *context = event->context;
-	switch (event->event_id) {
-		case MQTT_EVENT_CONNECTED:
-			ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-			/*msg_id = esp_mqtt_client_publish(client, "/topic/qos1", "data_3", 0, 1, 0);
-			ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-
-			msg_id = esp_mqtt_client_subscribe(client, "/topic/qos0", 0);
-			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-			msg_id = esp_mqtt_client_subscribe(client, "/topic/qos1", 1);
-			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-			msg_id = esp_mqtt_client_unsubscribe(client, "/topic/qos1");
-			ESP_LOGI(TAG, "sent unsubscribe successful, msg_id=%d", msg_id);*/
-
-			//rgb_color_t *color = rgb_new_color_t ();
-			//color->r = 0;
-			//color->g = 50;
-			//color->b = 0;
-			//rgb_set_color (color);
-
-			msg_id = esp_mqtt_client_subscribe(client, "/lab/light", 1);
-			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-			msg_id = esp_mqtt_client_subscribe(client, "/lab/power", 1);
-			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-
-			msg_id = esp_mqtt_client_subscribe(client, "/lab/ch", 1);
-			ESP_LOGI(TAG, "sent subscribe successful, msg_id=%d", msg_id);
-		break;
-		case MQTT_EVENT_DISCONNECTED:
-			ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-		break;
-		case MQTT_EVENT_SUBSCRIBED:
-			ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-			//msg_id = esp_mqtt_client_publish(client, "/topic/qos0", "data", 0, 0, 0);
-			//ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
-		break;
-		case MQTT_EVENT_UNSUBSCRIBED:
-			ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-		break;
-		case MQTT_EVENT_PUBLISHED:
-			ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
-		break;
-		case MQTT_EVENT_DATA:
-			ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-			printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-			printf("DATA=%.*s\r\n", event->data_len, event->data);
-			if (!memcmp(event->topic, "/lab/light", event->topic_len))
-			{
-        //lt_set(atoi(event->data));
-			}
-      else if (!memcmp(event->topic, "/lab/power", event->topic_len))
-			{
-        if (event->data[0] == '1')
-          pb_set(PB_ON);
-        else if (event->data[0] == '0')
-          pb_set(PB_OFF);
-			} else if (!memcmp(event->topic, "/lab/ch", event->topic_len))
-			{
-        ch_set(atoi(event->data));
-      }
-		break;
-		case MQTT_EVENT_ERROR:
-			ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
-		break;
-	}
-	return ESP_OK;
-}
-
-static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
-{
-    /* For accessing reason codes in case of disconnection */
-    system_event_info_t *info = &event->event_info;
-    
-    switch (event->event_id) {
-        case SYSTEM_EVENT_STA_START:
-            esp_wifi_connect();
-            break;
-        case SYSTEM_EVENT_STA_GOT_IP:
-            xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
-
-            break;
-        case SYSTEM_EVENT_STA_DISCONNECTED:
-            ESP_LOGE(TAG, "Disconnect reason : %d", info->disconnected.reason);
-            if (info->disconnected.reason == WIFI_REASON_BASIC_RATE_NOT_SUPPORT) {
-                /*Switch to 802.11 bgn mode */
-                esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-            }
-            //esp_restart ();
-						esp_wifi_connect();
-            xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
-            break;
-        default:
-            break;
-    }
-    return ESP_OK;
-}
-
-void wifi_init()
-{
-	tcpip_adapter_init();
-  wifi_event_group = xEventGroupCreate();
-  ESP_ERROR_CHECK(esp_event_loop_init(wifi_event_handler, NULL));
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-  wifi_config_t wifi_config = {
-      .sta = {
-          .ssid = CONFIG_WIFI_SSID,
-          .password = CONFIG_WIFI_PASSWORD,
-      },
-  };
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-  ESP_LOGI(TAG, "start the WIFI SSID:[%s]", CONFIG_WIFI_SSID);
-  ESP_ERROR_CHECK(esp_wifi_start());
-  ESP_LOGI(TAG, "Waiting for wifi");
-}
-
-void mqtt_app_start(void)
-{
-  xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
-	esp_mqtt_client_config_t mqtt_cfg = {
-        .uri = CONFIG_BROKER_URL,
-        .event_handle = mqtt_event_handler,
-        // .user_context = (void *)your_context
-#if CONFIG_BROKER_AUTH
-        .username = CONFIG_BROKER_USER,
-        .password = CONFIG_BROKER_PASS,
-#endif
-    };
-
-    client = esp_mqtt_client_init(&mqtt_cfg);
-    esp_mqtt_client_start(client);
-}
 
 void app_main()
 {
@@ -191,10 +37,12 @@ void app_main()
 	//xTaskCreate(wifi_init , "wifi_init", 4096, NULL, 5, NULL);
 	//xTaskCreate(mqtt_app_start, "mqtt_init", 2048, NULL, 5, NULL);
 
-  nvs_flash_init();
+	wifi_event_group = xEventGroupCreate();
+
+	nvs_flash_init();
 	wifi_init();
 	mqtt_app_start();
-  pb_init();
-  //lt_init();
-  ch_init();
+	pb_init();
+	//lt_init();
+	ch_init();
 }

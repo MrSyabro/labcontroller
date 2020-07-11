@@ -15,6 +15,8 @@
 #include "driver/gpio.h"
 
 #include "powerblock.h"
+#include "messaging.h"
+#include "channels.h"
 
 extern esp_mqtt_client_handle_t client;
 
@@ -41,8 +43,11 @@ static void gpio_task_example(void *arg)
         gpio_set_level(PB_ON_PIN, PB_OFF);
         power_state = PB_OFF;
       }
-      if (gpio_get_level(io_num)) esp_mqtt_client_publish(client, "/lab/power/s", "1", 0, 1, 0);
-      else esp_mqtt_client_publish(client, "/lab/power/s", "0", 0, 1, 0);
+      if (gpio_get_level(io_num)) {
+        send_message("/lab/power/s", "1");
+        ch_reset();
+      }
+      else send_message("/lab/power/s", "0");
 
       ESP_LOGI(TAG, "GPIO[%d] intr, val: %d\n", io_num, gpio_get_level(io_num));
     }
@@ -53,14 +58,14 @@ void pb_set(uint8_t s)
 {
   if ((s == PB_ON || s == PB_OFF) && s != power_state) {
     gpio_set_level(PB_ON_PIN, s);
-    esp_mqtt_client_publish(client, "/lab/power/s", "2", 0, 1, 0);
+    send_message("/lab/power/s", "2");
     power_state = s;
     ESP_LOGI(TAG, "Power set: %d", s);
   } else {
     if (power_state == PB_OFF)
-      esp_mqtt_client_publish(client, "/lab/power/s", "0", 0, 1, 0);
+      send_message("/lab/power/s", "0");
     else
-      esp_mqtt_client_publish(client, "/lab/power/s", "1", 0, 1, 0);
+      send_message("/lab/power/s", "1");
   }
 }
 

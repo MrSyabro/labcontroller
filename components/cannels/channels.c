@@ -41,6 +41,21 @@ void ch_set(uint32_t s)
   //ESP_LOGI(TAG, "Regster response: 0x%0x", response);
 }
 
+void ch_reset()
+{
+  ESP_LOGI(TAG, "Channel reset");
+
+  channels_stats = 0b101; // Reset state
+
+  spi_trans_t trans;
+  memset(&trans, 0x0, sizeof(trans));
+  trans.bits.mosi = 8;
+  trans.mosi = &channels_stats;
+  spi_trans(HSPI_HOST, &trans);
+
+  //ESP_LOGI(TAG, "Regster response: 0x%0x", response);
+}
+
 void ch_init()
 {
   ESP_LOGI(TAG, "init");
